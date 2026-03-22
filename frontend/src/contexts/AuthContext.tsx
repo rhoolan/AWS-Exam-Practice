@@ -24,9 +24,11 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const API_BASE = import.meta.env['VITE_API_URL'] ?? '';
+
 async function fetchMe(): Promise<UserProfile | null> {
   try {
-    const res = await fetch('/api/auth/me', { credentials: 'include' });
+    const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
     if (!res.ok) return null;
     return (await res.json()) as UserProfile;
   } catch {
@@ -35,7 +37,7 @@ async function fetchMe(): Promise<UserProfile | null> {
 }
 
 async function postJson(url: string, body: unknown): Promise<Response> {
-  return fetch(url, {
+  return fetch(`${API_BASE}${url}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -81,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async (): Promise<void> => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' });
     setUser(null);
     setStatus('unauthenticated');
   }, []);
