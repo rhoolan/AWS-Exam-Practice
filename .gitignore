@@ -1,3 +1,6 @@
 notes/
 exam_csv/
 .env
+node_modules/
+dist/
+*.tsbuildinfo
