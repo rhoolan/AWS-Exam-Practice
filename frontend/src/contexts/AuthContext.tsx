@@ -25,10 +25,32 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const API_BASE = import.meta.env['VITE_API_URL'] ?? '';
+const TOKEN_KEY = 'auth_token';
+
+function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function fetchMe(): Promise<UserProfile | null> {
+  const token = getToken();
+  if (!token) return null;
   try {
-    const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!res.ok) return null;
     return (await res.json()) as UserProfile;
   } catch {
@@ -39,8 +61,7 @@ async function fetchMe(): Promise<UserProfile | null> {
 async function postJson(url: string, body: unknown): Promise<Response> {
   return fetch(`${API_BASE}${url}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
 }
@@ -49,7 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
 
-  // On mount — check if there's an existing session cookie
   useEffect(() => {
     fetchMe().then((profile) => {
       setUser(profile);
@@ -63,6 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const body = (await res.json()) as { error: string };
       throw new Error(body.error);
     }
+    const { token } = (await res.json()) as { token: string };
+    setToken(token);
     const profile = await fetchMe();
     setUser(profile);
     setStatus(profile ? 'authenticated' : 'unauthenticated');
@@ -75,6 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const body = (await res.json()) as { error: string };
         throw new Error(body.error);
       }
+      const { token } = (await res.json()) as { token: string };
+      setToken(token);
       const profile = await fetchMe();
       setUser(profile);
       setStatus(profile ? 'authenticated' : 'unauthenticated');
@@ -83,7 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async (): Promise<void> => {
-    await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+    await fetch(`${API_BASE}/api/auth/logout`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    clearToken();
     setUser(null);
     setStatus('unauthenticated');
   }, []);

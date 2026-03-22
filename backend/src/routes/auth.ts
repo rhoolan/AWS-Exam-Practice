@@ -4,16 +4,6 @@ import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 
-const COOKIE_NAME = 'sb-access-token';
-
-const cookieOptions = {
-  httpOnly: true,
-  secure: process.env['NODE_ENV'] === 'production',
-  sameSite: 'lax' as const,
-  maxAge: 60 * 60 * 24 * 7 * 1000, // 7 days
-  path: '/',
-};
-
 interface SignupBody {
   email: string;
   password: string;
@@ -43,13 +33,11 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // admin.createUser passes display_name into raw_user_meta_data.
-  // The existing Postgres trigger handle_new_user() reads this to populate profiles.display_name.
   const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
     email,
     password,
     user_metadata: { display_name: display_name.trim() },
-    email_confirm: true, // skip email verification — user can log in immediately
+    email_confirm: true,
   });
 
   if (createError) {
@@ -57,7 +45,6 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // Sign in immediately to get a session token for the cookie
   const { data: sessionData, error: signInError } = await supabaseAnon.auth.signInWithPassword({
     email,
     password,
@@ -68,8 +55,10 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  res.cookie(COOKIE_NAME, sessionData.session.access_token, cookieOptions);
-  res.json({ user: { id: userData.user.id, email: userData.user.email } });
+  res.json({
+    token: sessionData.session.access_token,
+    user: { id: userData.user.id, email: userData.user.email },
+  });
 });
 
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
@@ -83,13 +72,14 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   const { data, error } = await supabaseAnon.auth.signInWithPassword({ email, password });
 
   if (error || !data.session) {
-    // Generic message — never reveal whether the email exists
     res.status(401).json({ error: 'Invalid email or password' });
     return;
   }
 
-  res.cookie(COOKIE_NAME, data.session.access_token, cookieOptions);
-  res.json({ user: { id: data.user.id, email: data.user.email } });
+  res.json({
+    token: data.session.access_token,
+    user: { id: data.user.id, email: data.user.email },
+  });
 });
 
 router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -108,7 +98,6 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response):
 });
 
 router.post('/logout', (_req: Request, res: Response): void => {
-  res.clearCookie(COOKIE_NAME, { path: '/' });
   res.json({ message: 'Logged out' });
 });
 

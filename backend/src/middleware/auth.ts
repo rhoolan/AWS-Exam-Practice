@@ -10,7 +10,8 @@ export async function requireAuth(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const token = (req.cookies as Record<string, string | undefined>)['sb-access-token'];
+  const authHeader = req.headers['authorization'];
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
 
   if (!token) {
     res.status(401).json({ error: 'Unauthorized' });
