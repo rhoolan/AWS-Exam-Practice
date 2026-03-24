@@ -1,0 +1,3 @@
+[project]
+# project_id is overridden at runtime via --project-ref CLI flag
+id = "placeholder"
